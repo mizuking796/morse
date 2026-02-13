@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0f172a"/>
+  <g fill="#38bdf8">
+    <!-- dit dit dit (S) -->
+    <circle cx="110" cy="200" r="24"/>
+    <circle cx="180" cy="200" r="24"/>
+    <circle cx="250" cy="200" r="24"/>
+    <!-- dah dah dah (O) -->
+    <rect x="80" y="246" width="80" height="48" rx="24"/>
+    <rect x="180" y="246" width="80" height="48" rx="24"/>
+    <rect x="280" y="246" width="80" height="48" rx="24"/>
+    <!-- dit dit dit (S) -->
+    <circle cx="110" cy="340" r="24"/>
+    <circle cx="180" cy="340" r="24"/>
+    <circle cx="250" cy="340" r="24"/>
+  </g>
+  <!-- Signal waves -->
+  <g stroke="#38bdf8" stroke-width="6" fill="none" opacity="0.4">
+    <path d="M380 200 Q400 170 420 200 Q440 230 460 200"/>
+    <path d="M380 270 Q410 230 440 270 Q470 310 500 270"/>
+  </g>
+</svg>

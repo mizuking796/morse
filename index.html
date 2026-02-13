@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Morse Code Translator</title>
+<meta name="description" content="モールス信号変換アプリ — テキスト・音・光・タップ・マイクで双方向変換">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ===== Consent Screen ===== -->
+<div id="consent-screen">
+  <div class="consent-card">
+    <div class="logo">///</div>
+    <div class="org">特定非営利活動法人リハビリコラボレーション</div>
+    <h2>Morse Translator</h2>
+    <div class="consent-terms">
+      <h3>利用規約</h3>
+      <p>本アプリ（以下「本サービス」）は、特定非営利活動法人リハビリコラボレーション（以下「当法人」）が提供するモールス信号変換ツールです。本サービスの利用にあたり、以下の事項に同意いただく必要があります。</p>
+      <h3>第1条（サービス内容）</h3>
+      <p>本サービスは、テキストとモールス信号の相互変換、音声・光・タップ・マイクによる入出力機能を提供します。すべての処理はお使いの端末上で完結し、外部サーバーへのデータ送信は行いません。</p>
+      <h3>第2条（利用条件）</h3>
+      <p>本サービスは無料でご利用いただけます。商用・非商用を問わず自由にご利用いただけますが、本サービスそのものの再配布は禁止します。</p>
+      <h3>第3条（免責事項）</h3>
+      <p>当法人は、本サービスの正確性、完全性、有用性について一切保証しません。本サービスの利用により生じた損害について、当法人は責任を負いません。モールス信号の送受信に関する法規制は利用者の責任において遵守してください。</p>
+      <h3>第4条（プライバシー）</h3>
+      <p>本サービスは個人情報を収集しません。設定値は端末のローカルストレージに保存され、外部に送信されることはありません。</p>
+      <h3>第5条（変更）</h3>
+      <p>当法人は、本規約を予告なく変更できるものとします。変更後の規約は本サービス上に表示した時点で効力を生じます。</p>
+    </div>
+    <label class="consent-check">
+      <input type="checkbox" id="consent-check">
+      上記の利用規約に同意します
+    </label>
+    <button class="btn btn-primary convert-btn" id="consent-btn" disabled>利用開始</button>
+  </div>
+</div>
+
+<!-- ===== App ===== -->
+<header>
+  <h1><span>///</span> Morse Translator</h1>
+  <div class="header-actions">
+    <button class="header-btn" id="settings-btn" title="設定">&#x2699;</button>
+  </div>
+</header>
+
+<div class="lang-bar">
+  <div class="lang-toggle">
+    <button class="lang-btn active" data-lang="intl">International</button>
+    <button class="lang-btn" data-lang="ja">和文</button>
+  </div>
+</div>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="encode">エンコード</button>
+  <button class="tab-btn" data-tab="decode">デコード</button>
+  <button class="tab-btn" data-tab="ref">一覧表</button>
+</nav>
+
+<main>
+  <!-- ===== ENCODE ===== -->
+  <section id="panel-encode" class="panel active">
+    <div>
+      <label for="encode-input">入力テキスト</label>
+      <div id="presets" class="presets"></div>
+      <textarea id="encode-input" rows="3"></textarea>
+    </div>
+    <div id="encode-src-display" class="output-box" style="display:none; font-size:1.125rem; letter-spacing:0.05em;"></div>
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <label>モールスコード</label>
+        <div class="toggle-row">
+          <button class="toggle-btn active" data-notation="dot">・ ー</button>
+          <button class="toggle-btn" data-notation="dash">. -</button>
+        </div>
+      </div>
+      <div class="output-box morse-output" id="encode-output">
+        <span class="placeholder">変換結果がここに表示されます</span>
+      </div>
+    </div>
+    <div>
+      <label>再生</label>
+      <div class="btn-row" style="margin-top:6px;">
+        <button class="btn-icon" id="play-sound-btn" title="音">&#x1f50a;</button>
+        <button class="btn-icon" id="play-light-btn" title="光">&#x1f4a1;</button>
+        <button class="btn-icon" id="stop-btn" title="停止" style="display:none;">&#x23f9;</button>
+        <div class="status-bar" style="flex:1;">
+          <span class="status-dot" id="play-dot"></span>
+          <span id="play-status">待機中</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="slider-group">
+        <label for="wpm-slider">速度</label>
+        <input type="range" id="wpm-slider" min="5" max="30" value="15">
+        <span class="slider-value" id="wpm-value">15 WPM</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== DECODE ===== -->
+  <section id="panel-decode" class="panel">
+    <div>
+      <label>入力モード</label>
+      <div class="mode-tabs" style="margin-top:6px;">
+        <button class="mode-tab active" data-mode="text">テキスト</button>
+        <button class="mode-tab" data-mode="tap">タップ</button>
+        <button class="mode-tab" data-mode="mic">マイク</button>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div id="decode-text" class="decode-mode active">
+      <textarea class="morse-input" id="decode-morse-input"></textarea>
+      <button class="btn btn-primary convert-btn" id="decode-btn">デコード</button>
+    </div>
+
+    <!-- Tap -->
+    <div id="decode-tap" class="decode-mode">
+      <div class="tap-area">
+        <div class="tap-buffer" id="tap-buffer"><span class="placeholder">ボタンを押してモールスを入力</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0 8px;">
+          <label style="font-size:0.75rem;color:var(--text2);white-space:nowrap;">速度</label>
+          <input type="range" id="tap-wpm" min="5" max="30" value="10" style="flex:1;accent-color:var(--accent);">
+          <span id="tap-wpm-val" style="font-size:0.75rem;color:var(--text2);min-width:5ch;text-align:right;">10 WPM</span>
+        </div>
+        <div id="tap-mode-hold" style="display:flex;flex-direction:column;align-items:center;gap:8px;">
+          <button class="tap-btn" id="tap-btn">TAP</button>
+          <div style="font-size:0.6875rem;color:var(--text2);">短く押す＝短点　長く押す＝長点</div>
+        </div>
+        <div id="tap-mode-split" style="display:none;flex-direction:column;align-items:center;gap:8px;">
+          <div style="display:flex;gap:16px;">
+            <button class="tap-btn" id="tap-dit-btn" style="width:100px;height:100px;font-size:1.5rem;">・</button>
+            <button class="tap-btn" id="tap-dah-btn" style="width:100px;height:100px;font-size:1.5rem;">ー</button>
+          </div>
+          <div style="font-size:0.6875rem;color:var(--text2);">拍手・太鼓など長短を分けて入力</div>
+        </div>
+        <div style="margin:4px 0;">
+          <button class="btn btn-sm" id="tap-mode-toggle" style="background:var(--surface2);color:var(--text);font-size:0.6875rem;">⇄ 2ボタンモード</button>
+        </div>
+        <div class="tap-actions">
+          <button class="btn btn-sm btn-primary" id="tap-space-btn">区切り</button>
+          <button class="btn btn-sm btn-primary" id="tap-word-btn">単語</button>
+          <button class="btn btn-sm" id="tap-undo-btn" style="background:var(--surface2);color:var(--text);">戻す</button>
+          <button class="btn btn-sm btn-danger" id="tap-clear-btn">消去</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mic -->
+    <div id="decode-mic" class="decode-mode">
+      <div class="mic-area">
+        <div class="mic-canvas-wrap">
+          <canvas id="mic-canvas"></canvas>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--text2);margin-bottom:4px;">
+          <span>音量</span>
+          <div style="flex:1;height:8px;background:var(--surface);border-radius:4px;overflow:hidden;position:relative;">
+            <div id="mic-level-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width 0.05s;"></div>
+            <div id="mic-threshold-mark" style="position:absolute;top:0;height:100%;width:2px;background:#fb923c;left:50%;"></div>
+          </div>
+          <span id="mic-level-text" style="min-width:3ch;text-align:right;">0</span>
+        </div>
+        <div class="slider-group">
+          <label>しきい値</label>
+          <input type="range" id="mic-sensitivity" min="5" max="95" value="50" step="5">
+          <span class="slider-value" id="mic-sens-value">50</span>
+        </div>
+        <div class="mic-controls">
+          <button class="btn btn-primary btn-sm" id="mic-start-btn">録音開始</button>
+          <button class="btn btn-sm btn-danger" id="mic-stop-btn" style="display:none;">停止</button>
+          <button class="btn btn-sm" id="mic-clear-btn" style="background:var(--surface2);color:var(--text);">消去</button>
+        </div>
+        <div class="tap-buffer" id="mic-buffer"><span class="placeholder">マイクで音を入力</span></div>
+      </div>
+    </div>
+
+    <div>
+      <label>デコード結果</label>
+      <div class="decode-result" id="decode-output">
+        <span class="placeholder">デコード結果がここに表示されます</span>
+      </div>
+    </div>
+    <p class="info-text" id="decode-info"></p>
+  </section>
+
+  <!-- ===== REFERENCE ===== -->
+  <section id="panel-ref" class="panel">
+    <label id="ref-title">モールスコード一覧</label>
+    <div class="ref-grid" id="ref-grid"></div>
+    <div id="abbrev-section" style="margin-top:20px;"></div>
+  </section>
+</main>
+
+<footer>Morse Translator v2.0 &mdash; 特定非営利活動法人リハビリコラボレーション</footer>
+
+<!-- Flash overlay -->
+<div id="flash-overlay"></div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">設定</div>
+
+    <div class="setting-row">
+      <div class="slider-group">
+        <span class="setting-label" style="min-width:80px;">周波数</span>
+        <input type="range" id="freq-slider" min="400" max="1000" value="700" step="50">
+        <span class="slider-value" id="freq-value">700 Hz</span>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div class="slider-group">
+        <span class="setting-label" style="min-width:80px;">速度</span>
+        <input type="range" id="settings-wpm" min="5" max="30" value="15">
+        <span class="slider-value" id="settings-wpm-value">15 WPM</span>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <div class="switch-row">
+        <span class="setting-label">ライトモード</span>
+        <button class="switch" id="theme-switch"></button>
+      </div>
+    </div>
+
+    <div class="setting-row">
+      <button class="btn btn-sm" id="show-terms-btn" style="background:var(--surface2);color:var(--text);width:100%;font-size:0.75rem;">利用規約を表示</button>
+    </div>
+
+    <div style="margin-top:16px;">
+      <button class="btn btn-primary convert-btn" id="settings-close">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/morse-data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
