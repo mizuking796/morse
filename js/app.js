@@ -144,7 +144,7 @@ let currentMapping = []; // encodeTextMapped result for highlight sync
 function renderEncodeOutput(morseStr) {
   const el = document.getElementById('encode-output');
   if (!morseStr) {
-    el.innerHTML = '<span class="placeholder">\u5909\u63db\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+    el.innerHTML = '<span class="placeholder">' + t('placeholder.encode') + '</span>';
     document.getElementById('encode-src-display').style.display = 'none';
     return;
   }
@@ -209,7 +209,7 @@ function stopPlayback() {
   document.getElementById('play-sound-btn').classList.remove('playing');
   document.getElementById('play-light-btn').classList.remove('playing');
   document.getElementById('play-dot').className = 'status-dot';
-  document.getElementById('play-status').textContent = '\u5f85\u6a5f\u4e2d';
+  document.getElementById('play-status').textContent = t('status.waiting');
   document.querySelectorAll('.morse-char.highlight, .src-char.highlight').forEach(e => e.classList.remove('highlight'));
 }
 
@@ -253,7 +253,7 @@ async function playSound(morseStr) {
   document.getElementById('stop-btn').style.display = '';
   document.getElementById('play-sound-btn').classList.add('playing');
   document.getElementById('play-dot').className = 'status-dot playing';
-  document.getElementById('play-status').textContent = '\u97f3\u3067\u518d\u751f\u4e2d...';
+  document.getElementById('play-status').textContent = t('status.sound');
   try {
     for (const ev of tl) {
       if (ac.signal.aborted) break;
@@ -288,7 +288,7 @@ async function playLight(morseStr) {
   document.getElementById('stop-btn').style.display = '';
   document.getElementById('play-light-btn').classList.add('playing');
   document.getElementById('play-dot').className = 'status-dot playing';
-  document.getElementById('play-status').textContent = '\u5149\u3067\u518d\u751f\u4e2d...';
+  document.getElementById('play-status').textContent = t('status.light');
 
   // Try to acquire camera torch
   try {
@@ -338,7 +338,7 @@ const tap = {
 function tapUpdateDisplay() {
   const el = document.getElementById('tap-buffer');
   if (!tap.morseStr && !tap.buffer) {
-    el.innerHTML = '<span class="placeholder">\u30dc\u30bf\u30f3\u3092\u62bc\u3057\u3066\u30e2\u30fc\u30eb\u30b9\u3092\u5165\u529b</span>';
+    el.innerHTML = '<span class="placeholder">' + t('placeholder.tap') + '</span>';
   } else {
     // Show committed morse + highlight pending buffer
     const committed = tap.morseStr ? toDisplay(tap.morseStr) : '';
@@ -512,7 +512,7 @@ const mic = {
 function micRebuild(pendingGapMs) {
   const el = document.getElementById('mic-buffer');
   if (mic.rawSignals.length === 0) {
-    el.innerHTML = '<span class="placeholder">\u30de\u30a4\u30af\u3067\u97f3\u3092\u5165\u529b</span>';
+    el.innerHTML = '<span class="placeholder">' + t('placeholder.mic') + '</span>';
     return 80;
   }
   const unit = mic.autoWpm ? estimateUnit(mic.rawSignals) : 1200 / parseInt(document.getElementById('mic-wpm').value);
@@ -529,7 +529,7 @@ async function micStart() {
   try {
     mic.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
-    alert('\u30de\u30a4\u30af\u3078\u306e\u30a2\u30af\u30bb\u30b9\u304c\u8a31\u53ef\u3055\u308c\u307e\u305b\u3093\u3067\u3057\u305f');
+    alert(t('alert.mic_denied'));
     return;
   }
   const ctx = getAudioCtx();
@@ -660,7 +660,7 @@ const cam = {
 function camRebuild(pendingGapMs) {
   const el = document.getElementById('cam-buffer');
   if (cam.rawSignals.length === 0) {
-    el.innerHTML = '<span class="placeholder">\u30ab\u30e1\u30e9\u3067\u5149\u3092\u691c\u51fa</span>';
+    el.innerHTML = '<span class="placeholder">' + t('placeholder.cam') + '</span>';
     return 80;
   }
   const unit = cam.autoWpm ? estimateUnit(cam.rawSignals) : 1200 / parseInt(document.getElementById('cam-wpm').value);
@@ -679,7 +679,7 @@ async function camStart() {
       video: { facingMode: 'environment', width: { ideal: 320 }, height: { ideal: 240 } }
     });
   } catch (e) {
-    alert('\u30ab\u30e1\u30e9\u3078\u306e\u30a2\u30af\u30bb\u30b9\u304c\u8a31\u53ef\u3055\u308c\u307e\u305b\u3093\u3067\u3057\u305f');
+    alert(t('alert.cam_denied'));
     return;
   }
   const video = document.getElementById('cam-video');
@@ -804,19 +804,26 @@ function buildRefGrid() {
   }
 }
 
+function localizedStr(val) {
+  return (typeof val === 'object' && val !== null) ? (val[uiLang] || val.ja) : val;
+}
+
 function buildAbbrevSection() {
   const el = document.getElementById('abbrev-section');
   const data = currentLang === 'ja' ? ABBREV_JA : ABBREV_INTL;
-  let html = '<label style="display:block;margin-bottom:8px;">\u7565\u8a9e\u30fbQ\u30b3\u30fc\u30c9</label>';
+  let html = '<label style="display:block;margin-bottom:8px;">' + t('label.abbrev') + '</label>';
   for (const group of data) {
-    const note = group.note ? `<div style="font-size:0.6875rem;color:var(--accent);margin:4px 0;">${group.note}</div>` : '';
-    html += `<details class="abbrev-group"><summary>${group.group}</summary>${note}<table class="abbrev-table"><thead><tr><th>\u7b26\u53f7</th><th>\u610f\u5473</th><th style="text-align:right;">\u30e2\u30fc\u30eb\u30b9</th></tr></thead><tbody>`;
+    const groupName = localizedStr(group.group);
+    const noteText = group.note ? localizedStr(group.note) : '';
+    const note = noteText ? `<div style="font-size:0.6875rem;color:var(--accent);margin:4px 0;">${noteText}</div>` : '';
+    html += `<details class="abbrev-group"><summary>${groupName}</summary>${note}<table class="abbrev-table"><thead><tr><th>${t('th.code')}</th><th>${t('th.meaning')}</th><th style="text-align:right;">${t('th.morse')}</th></tr></thead><tbody>`;
     for (const item of group.items) {
+      const meaning = localizedStr(item.meaning);
       // Generate morse if not explicitly provided
       const morse = item.morse || encodeText(item.code);
       const morseDisp = morse ? toDisplay(morse) : '';
       const morseAttr = morse ? ` data-morse="${morse}"` : '';
-      html += `<tr${morseAttr}><td>${item.code}</td><td>${item.meaning}</td><td style="font-family:var(--mono);font-size:0.6875rem;text-align:right;color:var(--text2);letter-spacing:0.05em;">${morseDisp}</td></tr>`;
+      html += `<tr${morseAttr}><td>${item.code}</td><td>${meaning}</td><td style="font-family:var(--mono);font-size:0.6875rem;text-align:right;color:var(--text2);letter-spacing:0.05em;">${morseDisp}</td></tr>`;
     }
     html += '</tbody></table></details>';
   }
@@ -837,13 +844,13 @@ function updatePlaceholders() {
   const dec = document.getElementById('decode-morse-input');
   const info = document.getElementById('decode-info');
   if (currentLang === 'ja') {
-    enc.placeholder = '\u5909\u63db\u3057\u305f\u3044\u30c6\u30ad\u30b9\u30c8\u3092\u5165\u529b...\n\u4f8b: \u30b3\u30f3\u30cb\u30c1\u30cf \u30bb\u30ab\u30a4';
-    dec.placeholder = '\u30e2\u30fc\u30eb\u30b9\u30b3\u30fc\u30c9\u3092\u5165\u529b...\n\u4f8b: ---- .-.-. -.-. ..-. -...';
-    info.innerHTML = '<code>.</code>(\u77ed\u70b9) <code>-</code>(\u9577\u70b9) | \u30b9\u30da\u30fc\u30b9=\u6587\u5b57\u533a\u5207\u308a | <code>/</code>=\u5358\u8a9e\u533a\u5207\u308a<br>\u6fc1\u97f3: \u6587\u5b57 + <code>..</code> | \u534a\u6fc1\u97f3: \u6587\u5b57 + <code>..--.</code>';
+    enc.placeholder = t('placeholder.encode_ja');
+    dec.placeholder = t('placeholder.decode_ja');
+    info.innerHTML = t('info.decode_ja');
   } else {
-    enc.placeholder = '\u5909\u63db\u3057\u305f\u3044\u30c6\u30ad\u30b9\u30c8\u3092\u5165\u529b...\n\u4f8b: HELLO WORLD';
-    dec.placeholder = '\u30e2\u30fc\u30eb\u30b9\u30b3\u30fc\u30c9\u3092\u5165\u529b...\n\u4f8b: .... . .-.. .-.. --- / .-- --- .-. .-.. -..';
-    info.innerHTML = '<code>.</code>(\u77ed\u70b9) <code>-</code>(\u9577\u70b9) | \u30b9\u30da\u30fc\u30b9=\u6587\u5b57\u533a\u5207\u308a | <code>/</code>=\u5358\u8a9e\u533a\u5207\u308a';
+    enc.placeholder = t('placeholder.encode_intl');
+    dec.placeholder = t('placeholder.decode_intl');
+    info.innerHTML = t('info.decode_intl');
   }
 }
 
@@ -852,10 +859,10 @@ function resetAll() {
   currentMorse = '';
   currentMapping = [];
   document.getElementById('encode-input').value = '';
-  document.getElementById('encode-output').innerHTML = '<span class="placeholder">\u5909\u63db\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('encode-output').innerHTML = '<span class="placeholder">' + t('placeholder.encode') + '</span>';
   document.getElementById('encode-src-display').style.display = 'none';
   document.getElementById('decode-morse-input').value = '';
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">' + t('placeholder.result') + '</span>';
   // tap
   tap.buffer = ''; tap.morseStr = ''; clearTimeout(tap.charTimer); clearTimeout(tap.wordTimer);
   tapUpdateDisplay();
@@ -872,9 +879,10 @@ function resetAll() {
 function buildPresets() {
   const el = document.getElementById('presets');
   const list = currentLang === 'ja' ? PRESETS_JA : PRESETS_INTL;
-  el.innerHTML = list.map(p =>
-    `<button class="preset-btn" data-text="${p.text}">${p.label}</button>`
-  ).join('');
+  el.innerHTML = list.map(p => {
+    const label = localizedStr(p.label);
+    return `<button class="preset-btn" data-text="${p.text}">${label}</button>`;
+  }).join('');
   el.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       document.getElementById('encode-input').value = btn.dataset.text;
@@ -993,10 +1001,10 @@ document.getElementById('tap-mode-toggle').addEventListener('click', () => {
   const btn = document.getElementById('tap-mode-toggle');
   if (hold.style.display !== 'none') {
     hold.style.display = 'none'; split.style.display = 'flex';
-    btn.textContent = '\u21c4 \u9577\u62bc\u3057\u30e2\u30fc\u30c9';
+    btn.textContent = t('button.tap_mode_hold');
   } else {
     hold.style.display = 'flex'; split.style.display = 'none';
-    btn.textContent = '\u21c4 2\u30dc\u30bf\u30f3\u30e2\u30fc\u30c9';
+    btn.textContent = t('button.tap_mode_split');
   }
 });
 
@@ -1026,7 +1034,7 @@ document.getElementById('tap-clear-btn').addEventListener('click', () => {
   clearTimeout(tap.charTimer); clearTimeout(tap.wordTimer);
   tap.buffer = ''; tap.morseStr = '';
   tapUpdateDisplay();
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">' + t('placeholder.result') + '</span>';
 });
 
 // --- Mic ---
@@ -1040,11 +1048,11 @@ document.getElementById('mic-clear-btn').addEventListener('click', () => {
   mic.rawSignals = []; mic.lastSignalEnd = 0;
   micRebuild(0);
   document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">' + t('placeholder.result') + '</span>';
 });
 document.getElementById('mic-wpm-mode').addEventListener('click', function() {
   mic.autoWpm = !mic.autoWpm;
-  this.textContent = mic.autoWpm ? '\u81ea\u52d5' : '\u624b\u52d5';
+  this.textContent = mic.autoWpm ? t('button.auto') : t('button.manual');
   this.style.background = mic.autoWpm ? 'var(--accent)' : 'var(--surface2)';
   this.style.color = mic.autoWpm ? '#0f172a' : 'var(--text)';
   document.getElementById('mic-wpm').style.display = mic.autoWpm ? 'none' : '';
@@ -1065,11 +1073,11 @@ document.getElementById('cam-clear-btn').addEventListener('click', () => {
   cam.rawSignals = []; cam.lastSignalEnd = 0;
   camRebuild(0);
   document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">' + t('placeholder.result') + '</span>';
 });
 document.getElementById('cam-wpm-mode').addEventListener('click', function() {
   cam.autoWpm = !cam.autoWpm;
-  this.textContent = cam.autoWpm ? '\u81ea\u52d5' : '\u624b\u52d5';
+  this.textContent = cam.autoWpm ? t('button.auto') : t('button.manual');
   this.style.background = cam.autoWpm ? 'var(--accent)' : 'var(--surface2)';
   this.style.color = cam.autoWpm ? '#0f172a' : 'var(--text)';
   document.getElementById('cam-wpm').style.display = cam.autoWpm ? 'none' : '';
@@ -1106,9 +1114,29 @@ document.getElementById('theme-switch').addEventListener('click', function() {
   document.body.classList.toggle('light');
 });
 
+// Refresh dynamic labels that can't use data-i18n (state-dependent)
+function refreshDynamicLabels() {
+  const micMode = document.getElementById('mic-wpm-mode');
+  micMode.textContent = mic.autoWpm ? t('button.auto') : t('button.manual');
+  const camMode = document.getElementById('cam-wpm-mode');
+  camMode.textContent = cam.autoWpm ? t('button.auto') : t('button.manual');
+  // Tap mode toggle
+  const tapToggle = document.getElementById('tap-mode-toggle');
+  const holdVisible = document.getElementById('tap-mode-hold').style.display !== 'none';
+  tapToggle.textContent = holdVisible ? t('button.tap_mode_split') : t('button.tap_mode_hold');
+}
+
+// --- Language switcher ---
+document.getElementById('lang-btn').addEventListener('click', () => {
+  setUILang(uiLang === 'ja' ? 'en' : 'ja');
+  document.getElementById('lang-btn').textContent = t('lang.switch');
+});
+
 // ============================================================
 // Init
 // ============================================================
+document.documentElement.lang = uiLang === 'ja' ? 'ja' : 'en';
+translateDOM();
 updatePlaceholders();
 buildPresets();
 buildRefGrid();

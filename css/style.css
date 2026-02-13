@@ -94,6 +94,7 @@ header h1 span { color: var(--accent); }
   transition: background 0.15s;
 }
 .header-btn:hover { background: var(--border); }
+#lang-btn { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.05em; font-family: inherit; }
 
 /* ===== Language Selector ===== */
 .lang-bar {

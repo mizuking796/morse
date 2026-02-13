@@ -1,8 +1,9 @@
-const CACHE_NAME = 'morse-v2.3';
+const CACHE_NAME = 'morse-v2.4';
 const ASSETS = [
   './',
   './index.html',
   './css/style.css',
+  './js/i18n.js',
   './js/morse-data.js',
   './js/app.js',
   './icons/icon-192.png',
