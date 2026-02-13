@@ -432,7 +432,34 @@ const mic = {
   morseStr: '',
   charTimer: null,
   wordTimer: null,
+  onDurations: [],  // recent ON durations for adaptive timing
+  autoWpm: true,    // true=auto, false=manual
 };
+
+// Estimate dit duration from observed ON durations
+function getMicUnit() {
+  if (!mic.autoWpm) {
+    return 1200 / parseInt(document.getElementById('mic-wpm').value);
+  }
+  const durs = mic.onDurations;
+  if (durs.length === 0) return 120; // ~10 WPM default
+  if (durs.length === 1) return durs[0];
+
+  const sorted = [...durs].sort((a, b) => a - b);
+  // Find biggest ratio gap between consecutive durations to separate dits from dahs
+  let maxRatio = 0, splitIdx = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const ratio = sorted[i + 1] / sorted[i];
+    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i + 1; }
+  }
+  if (maxRatio > 1.5 && splitIdx > 0) {
+    // Clear dit/dah separation — shorter cluster = dits
+    const dits = sorted.slice(0, splitIdx);
+    return dits.reduce((a, b) => a + b, 0) / dits.length;
+  }
+  // No clear separation — assume all are dits, use median
+  return sorted[Math.floor(sorted.length / 2)];
+}
 
 function micUpdateDisplay() {
   const el = document.getElementById('mic-buffer');
@@ -473,6 +500,8 @@ async function micStart() {
   mic.offStart = performance.now();
   mic.buffer = '';
   mic.morseStr = '';
+  mic.onDurations = [];
+  document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
   micUpdateDisplay();
 
   const canvas = document.getElementById('mic-canvas');
@@ -523,7 +552,6 @@ async function micStart() {
     document.getElementById('mic-level-text').textContent = pct;
 
     const now = performance.now();
-    const unit = getUnit();
 
     if (maxAmp > sens01) {
       if (!mic.isOn) {
@@ -536,18 +564,28 @@ async function micStart() {
       if (mic.isOn) {
         mic.isOn = false;
         const dur = now - mic.onStart;
-        mic.buffer += dur < unit * 1.5 ? '.' : '-';
+        mic.onDurations.push(dur);
+        if (mic.onDurations.length > 40) mic.onDurations.shift();
+
+        const unit = getMicUnit();
+        mic.buffer += dur < unit * 2 ? '.' : '-';
         mic.offStart = now;
         micUpdateDisplay();
 
+        // Show estimated WPM
+        const estWpm = Math.round(1200 / unit);
+        document.getElementById('mic-wpm-val').textContent =
+          mic.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('mic-wpm').value + ' WPM');
+
+        // Adaptive gap timers: char gap at 2u, word gap at 5u total
         mic.charTimer = setTimeout(() => {
           micCommitChar();
           micUpdateDisplay();
           mic.wordTimer = setTimeout(() => {
             micCommitWord();
             micUpdateDisplay();
-          }, unit * 4);
-        }, unit * 3);
+          }, unit * 3);
+        }, unit * 2);
       }
     }
   }
@@ -820,9 +858,21 @@ document.getElementById('mic-sensitivity').addEventListener('input', function() 
   document.getElementById('mic-threshold-mark').style.left = this.value + '%';
 });
 document.getElementById('mic-clear-btn').addEventListener('click', () => {
-  mic.buffer = ''; mic.morseStr = '';
+  mic.buffer = ''; mic.morseStr = ''; mic.onDurations = [];
   micUpdateDisplay();
+  document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
   document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+});
+document.getElementById('mic-wpm-mode').addEventListener('click', function() {
+  mic.autoWpm = !mic.autoWpm;
+  this.textContent = mic.autoWpm ? '\u81ea\u52d5' : '\u624b\u52d5';
+  this.style.background = mic.autoWpm ? 'var(--accent)' : 'var(--surface2)';
+  this.style.color = mic.autoWpm ? '#0f172a' : 'var(--text)';
+  document.getElementById('mic-wpm').style.display = mic.autoWpm ? 'none' : '';
+  document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
+});
+document.getElementById('mic-wpm').addEventListener('input', function() {
+  document.getElementById('mic-wpm-val').textContent = this.value + ' WPM';
 });
 
 // --- Settings ---
