@@ -855,7 +855,7 @@ function resetAll() {
   document.getElementById('encode-output').innerHTML = '<span class="placeholder">\u5909\u63db\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
   document.getElementById('encode-src-display').style.display = 'none';
   document.getElementById('decode-morse-input').value = '';
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
   // tap
   tap.buffer = ''; tap.morseStr = ''; clearTimeout(tap.charTimer); clearTimeout(tap.wordTimer);
   tapUpdateDisplay();
@@ -1026,7 +1026,7 @@ document.getElementById('tap-clear-btn').addEventListener('click', () => {
   clearTimeout(tap.charTimer); clearTimeout(tap.wordTimer);
   tap.buffer = ''; tap.morseStr = '';
   tapUpdateDisplay();
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
 });
 
 // --- Mic ---
@@ -1040,7 +1040,7 @@ document.getElementById('mic-clear-btn').addEventListener('click', () => {
   mic.rawSignals = []; mic.lastSignalEnd = 0;
   micRebuild(0);
   document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
 });
 document.getElementById('mic-wpm-mode').addEventListener('click', function() {
   mic.autoWpm = !mic.autoWpm;
@@ -1065,7 +1065,7 @@ document.getElementById('cam-clear-btn').addEventListener('click', () => {
   cam.rawSignals = []; cam.lastSignalEnd = 0;
   camRebuild(0);
   document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
-  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u89e3\u8aad\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
 });
 document.getElementById('cam-wpm-mode').addEventListener('click', function() {
   cam.autoWpm = !cam.autoWpm;
