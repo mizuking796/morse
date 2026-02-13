@@ -77,9 +77,13 @@ header h1 {
   font-size: 1.0625rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 header h1 span { color: var(--accent); }
-.header-actions { display: flex; gap: 4px; }
+.header-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .header-btn {
   width: 36px; height: 36px;
   border: none;
