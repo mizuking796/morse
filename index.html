@@ -165,14 +165,14 @@
           <span>音量</span>
           <div style="flex:1;height:8px;background:var(--surface);border-radius:4px;overflow:hidden;position:relative;">
             <div id="mic-level-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width 0.05s;"></div>
-            <div id="mic-threshold-mark" style="position:absolute;top:0;height:100%;width:2px;background:#fb923c;left:50%;"></div>
+            <div id="mic-threshold-mark" style="position:absolute;top:0;height:100%;width:2px;background:#fb923c;left:15%;"></div>
           </div>
           <span id="mic-level-text" style="min-width:3ch;text-align:right;">0</span>
         </div>
         <div class="slider-group">
           <label>しきい値</label>
-          <input type="range" id="mic-sensitivity" min="5" max="95" value="50" step="5">
-          <span class="slider-value" id="mic-sens-value">50</span>
+          <input type="range" id="mic-sensitivity" min="5" max="95" value="15" step="5">
+          <span class="slider-value" id="mic-sens-value">15</span>
         </div>
         <div class="mic-controls">
           <button class="btn btn-primary btn-sm" id="mic-start-btn">録音開始</button>
