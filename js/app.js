@@ -92,9 +92,10 @@ function tokenize(text) {
 
 function encodeText(text) {
   const map = getMap();
+  const fallback = currentLang === 'ja' ? INTL_CHAR_TO_MORSE : null;
   let processed = currentLang === 'ja' ? decomposeJa(hiraToKata(text)) : text.toUpperCase();
   const words = processed.split(/[\s\u3000]+/).filter(Boolean);
-  return words.map(w => tokenize(w).map(c => map[c] || '').filter(Boolean).join(' ')).join(' / ');
+  return words.map(w => tokenize(w).map(c => map[c] || (fallback && fallback[c.toUpperCase()]) || '').filter(Boolean).join(' ')).join(' / ');
 }
 
 // Returns array of { srcChar, srcIdx, morse } for input<->morse mapping
@@ -108,7 +109,7 @@ function encodeTextMapped(text) {
     if (currentLang === 'ja') {
       const kata = hiraToKata(token);
       const decomposed = decomposeJa(kata);
-      const codes = [...decomposed].map(d => map[d]).filter(Boolean);
+      const codes = [...decomposed].map(d => map[d] || INTL_CHAR_TO_MORSE[d.toUpperCase()] || null).filter(Boolean);
       processed = codes.join(' ');
     } else {
       // Check prosign [XX] first, then single char
