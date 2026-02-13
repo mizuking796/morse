@@ -450,7 +450,7 @@ function tapSplitInput(signal) {
 
 // Max-ratio-gap clustering: find shortest-cluster mean (= 1 dit unit)
 function clusterEstimate(durs) {
-  if (durs.length === 0) return 120;
+  if (durs.length === 0) return 80;
   if (durs.length === 1) return durs[0];
   const sorted = [...durs].sort((a, b) => a - b);
   let maxRatio = 0, splitIdx = 0;
@@ -473,7 +473,7 @@ function estimateUnit(rawSignals) {
   const onEst = clusterEstimate(onDurs);
   const offEst = offDurs.length >= 2 ? clusterEstimate(offDurs) : null;
   if (onEst && offEst) return (onEst + offEst) / 2;
-  return onEst || 120;
+  return onEst || 80;
 }
 
 // Rebuild full morse string from raw signals
@@ -513,7 +513,7 @@ function micRebuild(pendingGapMs) {
   const el = document.getElementById('mic-buffer');
   if (mic.rawSignals.length === 0) {
     el.innerHTML = '<span class="placeholder">\u30de\u30a4\u30af\u3067\u97f3\u3092\u5165\u529b</span>';
-    return 120;
+    return 80;
   }
   const unit = mic.autoWpm ? estimateUnit(mic.rawSignals) : 1200 / parseInt(document.getElementById('mic-wpm').value);
   const morse = rebuildMorse(mic.rawSignals, unit, pendingGapMs);
@@ -661,7 +661,7 @@ function camRebuild(pendingGapMs) {
   const el = document.getElementById('cam-buffer');
   if (cam.rawSignals.length === 0) {
     el.innerHTML = '<span class="placeholder">\u30ab\u30e1\u30e9\u3067\u5149\u3092\u691c\u51fa</span>';
-    return 120;
+    return 80;
   }
   const unit = cam.autoWpm ? estimateUnit(cam.rawSignals) : 1200 / parseInt(document.getElementById('cam-wpm').value);
   const morse = rebuildMorse(cam.rawSignals, unit, pendingGapMs);
