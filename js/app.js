@@ -604,6 +604,168 @@ function micStop() {
 }
 
 // ============================================================
+// Camera Light Input Engine
+// ============================================================
+const cam = {
+  stream: null,
+  animFrame: null,
+  isOn: false,
+  onStart: 0,
+  buffer: '',
+  morseStr: '',
+  charTimer: null,
+  wordTimer: null,
+  onDurations: [],
+  autoWpm: true,
+};
+
+function getCamUnit() {
+  if (!cam.autoWpm) {
+    return 1200 / parseInt(document.getElementById('cam-wpm').value);
+  }
+  const durs = cam.onDurations;
+  if (durs.length === 0) return 120;
+  if (durs.length === 1) return durs[0];
+  const sorted = [...durs].sort((a, b) => a - b);
+  let maxRatio = 0, splitIdx = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const ratio = sorted[i + 1] / sorted[i];
+    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i + 1; }
+  }
+  if (maxRatio > 1.5 && splitIdx > 0) {
+    const dits = sorted.slice(0, splitIdx);
+    return dits.reduce((a, b) => a + b, 0) / dits.length;
+  }
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+function camUpdateDisplay() {
+  const el = document.getElementById('cam-buffer');
+  const full = cam.morseStr + (cam.buffer ? (cam.morseStr ? ' ' : '') + cam.buffer : '');
+  if (!full) { el.innerHTML = '<span class="placeholder">\u30ab\u30e1\u30e9\u3067\u5149\u3092\u691c\u51fa</span>'; }
+  else { el.textContent = toDisplay(full); }
+  if (full) document.getElementById('decode-output').textContent = decodeMorse(full);
+}
+
+function camCommitChar() {
+  if (!cam.buffer) return;
+  cam.morseStr += (cam.morseStr ? ' ' : '') + cam.buffer;
+  cam.buffer = '';
+}
+
+function camCommitWord() {
+  camCommitChar();
+  if (cam.morseStr && !cam.morseStr.endsWith('/')) cam.morseStr += ' /';
+}
+
+async function camStart() {
+  try {
+    cam.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 320 }, height: { ideal: 240 } }
+    });
+  } catch (e) {
+    alert('\u30ab\u30e1\u30e9\u3078\u306e\u30a2\u30af\u30bb\u30b9\u304c\u8a31\u53ef\u3055\u308c\u307e\u305b\u3093\u3067\u3057\u305f');
+    return;
+  }
+  const video = document.getElementById('cam-video');
+  video.srcObject = cam.stream;
+
+  document.getElementById('cam-start-btn').style.display = 'none';
+  document.getElementById('cam-stop-btn').style.display = '';
+
+  cam.isOn = false;
+  cam.buffer = '';
+  cam.morseStr = '';
+  cam.onDurations = [];
+  document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
+  camUpdateDisplay();
+
+  const canvas = document.getElementById('cam-canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  function detect() {
+    cam.animFrame = requestAnimationFrame(detect);
+    if (video.readyState < video.HAVE_CURRENT_DATA) return;
+
+    // Sample center region of video
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 240;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Calculate average brightness of center 1/3 region
+    const cx = Math.floor(canvas.width / 3);
+    const cy = Math.floor(canvas.height / 3);
+    const cw = Math.floor(canvas.width / 3);
+    const ch = Math.floor(canvas.height / 3);
+    const imgData = ctx.getImageData(cx, cy, cw, ch);
+    const d = imgData.data;
+    let total = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      total += (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114); // luminance
+    }
+    const brightness = total / (d.length / 4) / 255; // 0-1
+
+    // Update level bar
+    const pct = Math.round(brightness * 100);
+    document.getElementById('cam-level-bar').style.width = pct + '%';
+    const sens = parseInt(document.getElementById('cam-sensitivity').value) / 100;
+    document.getElementById('cam-level-bar').style.background = brightness > sens ? '#38bdf8' : 'var(--text2)';
+    document.getElementById('cam-level-text').textContent = pct;
+
+    // ON/OFF indicator
+    document.getElementById('cam-indicator').style.background = brightness > sens ? '#38bdf8' : 'var(--text2)';
+
+    // Detect morse signals
+    const now = performance.now();
+    if (brightness > sens) {
+      if (!cam.isOn) {
+        cam.isOn = true;
+        cam.onStart = now;
+        clearTimeout(cam.charTimer);
+        clearTimeout(cam.wordTimer);
+      }
+    } else {
+      if (cam.isOn) {
+        cam.isOn = false;
+        const dur = now - cam.onStart;
+        cam.onDurations.push(dur);
+        if (cam.onDurations.length > 40) cam.onDurations.shift();
+
+        const unit = getCamUnit();
+        cam.buffer += dur < unit * 2 ? '.' : '-';
+        camUpdateDisplay();
+
+        const estWpm = Math.round(1200 / unit);
+        document.getElementById('cam-wpm-val').textContent =
+          cam.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('cam-wpm').value + ' WPM');
+
+        cam.charTimer = setTimeout(() => {
+          camCommitChar();
+          camUpdateDisplay();
+          cam.wordTimer = setTimeout(() => {
+            camCommitWord();
+            camUpdateDisplay();
+          }, unit * 3);
+        }, unit * 2);
+      }
+    }
+  }
+  detect();
+}
+
+function camStop() {
+  if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
+  if (cam.animFrame) { cancelAnimationFrame(cam.animFrame); cam.animFrame = null; }
+  clearTimeout(cam.charTimer);
+  clearTimeout(cam.wordTimer);
+  camCommitChar();
+  camUpdateDisplay();
+  document.getElementById('cam-video').srcObject = null;
+  document.getElementById('cam-start-btn').style.display = '';
+  document.getElementById('cam-stop-btn').style.display = 'none';
+}
+
+// ============================================================
 // Reference Grid & Abbreviation Table
 // ============================================================
 function buildRefGrid() {
@@ -688,6 +850,10 @@ function resetAll() {
   micStop();
   mic.buffer = ''; mic.morseStr = '';
   micUpdateDisplay();
+  // cam
+  camStop();
+  cam.buffer = ''; cam.morseStr = '';
+  camUpdateDisplay();
 }
 
 function buildPresets() {
@@ -873,6 +1039,31 @@ document.getElementById('mic-wpm-mode').addEventListener('click', function() {
 });
 document.getElementById('mic-wpm').addEventListener('input', function() {
   document.getElementById('mic-wpm-val').textContent = this.value + ' WPM';
+});
+
+// --- Camera Light ---
+document.getElementById('cam-start-btn').addEventListener('click', camStart);
+document.getElementById('cam-stop-btn').addEventListener('click', camStop);
+document.getElementById('cam-sensitivity').addEventListener('input', function() {
+  document.getElementById('cam-sens-value').textContent = this.value;
+  document.getElementById('cam-threshold-mark').style.left = this.value + '%';
+});
+document.getElementById('cam-clear-btn').addEventListener('click', () => {
+  cam.buffer = ''; cam.morseStr = ''; cam.onDurations = [];
+  camUpdateDisplay();
+  document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
+  document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
+});
+document.getElementById('cam-wpm-mode').addEventListener('click', function() {
+  cam.autoWpm = !cam.autoWpm;
+  this.textContent = cam.autoWpm ? '\u81ea\u52d5' : '\u624b\u52d5';
+  this.style.background = cam.autoWpm ? 'var(--accent)' : 'var(--surface2)';
+  this.style.color = cam.autoWpm ? '#0f172a' : 'var(--text)';
+  document.getElementById('cam-wpm').style.display = cam.autoWpm ? 'none' : '';
+  document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
+});
+document.getElementById('cam-wpm').addEventListener('input', function() {
+  document.getElementById('cam-wpm-val').textContent = this.value + ' WPM';
 });
 
 // --- Settings ---

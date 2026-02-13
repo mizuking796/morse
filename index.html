@@ -114,6 +114,7 @@
         <button class="mode-tab active" data-mode="text">テキスト</button>
         <button class="mode-tab" data-mode="tap">タップ</button>
         <button class="mode-tab" data-mode="mic">マイク</button>
+        <button class="mode-tab" data-mode="cam">ライト</button>
       </div>
     </div>
 
@@ -186,6 +187,42 @@
           <button class="btn btn-sm" id="mic-clear-btn" style="background:var(--surface2);color:var(--text);">消去</button>
         </div>
         <div class="tap-buffer" id="mic-buffer"><span class="placeholder">マイクで音を入力</span></div>
+      </div>
+    </div>
+
+    <!-- Camera Light -->
+    <div id="decode-cam" class="decode-mode">
+      <div class="mic-area">
+        <div style="position:relative;border-radius:8px;overflow:hidden;background:#000;margin-bottom:8px;">
+          <video id="cam-video" autoplay playsinline muted style="width:100%;height:160px;object-fit:cover;display:block;"></video>
+          <canvas id="cam-canvas" style="display:none;"></canvas>
+          <div id="cam-indicator" style="position:absolute;top:8px;right:8px;width:12px;height:12px;border-radius:50%;background:var(--text2);border:2px solid rgba(255,255,255,0.3);"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.75rem;color:var(--text2);margin-bottom:4px;">
+          <span>明るさ</span>
+          <div style="flex:1;height:8px;background:var(--surface);border-radius:4px;overflow:hidden;position:relative;">
+            <div id="cam-level-bar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width 0.05s;"></div>
+            <div id="cam-threshold-mark" style="position:absolute;top:0;height:100%;width:2px;background:#fb923c;left:50%;"></div>
+          </div>
+          <span id="cam-level-text" style="min-width:3ch;text-align:right;">0</span>
+        </div>
+        <div class="slider-group">
+          <label>しきい値</label>
+          <input type="range" id="cam-sensitivity" min="5" max="95" value="50" step="5">
+          <span class="slider-value" id="cam-sens-value">50</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0;">
+          <label style="font-size:0.75rem;color:var(--text2);white-space:nowrap;">速度</label>
+          <button class="btn btn-sm" id="cam-wpm-mode" style="background:var(--accent);color:#0f172a;font-size:0.6875rem;padding:4px 8px;">自動</button>
+          <input type="range" id="cam-wpm" min="3" max="25" value="10" style="flex:1;accent-color:var(--accent);display:none;">
+          <span id="cam-wpm-val" style="font-size:0.75rem;color:var(--text2);min-width:7ch;text-align:right;">--- WPM</span>
+        </div>
+        <div class="mic-controls">
+          <button class="btn btn-primary btn-sm" id="cam-start-btn">カメラ開始</button>
+          <button class="btn btn-sm btn-danger" id="cam-stop-btn" style="display:none;">停止</button>
+          <button class="btn btn-sm" id="cam-clear-btn" style="background:var(--surface2);color:var(--text);">消去</button>
+        </div>
+        <div class="tap-buffer" id="cam-buffer"><span class="placeholder">カメラで光を検出</span></div>
       </div>
     </div>
 
