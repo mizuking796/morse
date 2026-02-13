@@ -198,9 +198,11 @@ function buildTimeline(morseStr) {
 }
 
 let playAbort = null;
+let torchTrack = null;
 
 function stopPlayback() {
   if (playAbort) { playAbort.abort(); playAbort = null; }
+  if (torchTrack) { torchTrack.stop(); torchTrack = null; }
   document.getElementById('flash-overlay').style.display = 'none';
   document.getElementById('stop-btn').style.display = 'none';
   document.getElementById('play-sound-btn').classList.remove('playing');
@@ -272,6 +274,11 @@ async function playSound(morseStr) {
   stopPlayback();
 }
 
+async function setTorch(on) {
+  if (!torchTrack) return;
+  try { await torchTrack.applyConstraints({ advanced: [{ torch: on }] }); } catch {}
+}
+
 async function playLight(morseStr) {
   stopPlayback();
   const ac = new AbortController(); playAbort = ac;
@@ -281,20 +288,38 @@ async function playLight(morseStr) {
   document.getElementById('play-light-btn').classList.add('playing');
   document.getElementById('play-dot').className = 'status-dot playing';
   document.getElementById('play-status').textContent = '\u5149\u3067\u518d\u751f\u4e2d...';
+
+  // Try to acquire camera torch
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    });
+    const track = stream.getVideoTracks()[0];
+    const caps = track.getCapabilities?.();
+    if (caps?.torch) {
+      torchTrack = track;
+    } else {
+      track.stop();
+    }
+  } catch {}
+
   try {
     for (const ev of tl) {
       if (ac.signal.aborted) break;
-      const ms = ev.u * getUnit(); // resolve to ms live
+      const ms = ev.u * getUnit();
       if (ev.ci >= 0) highlight(ev.ci);
       if (ev.t === 'on') {
+        await setTorch(true);
         flash.style.display = 'block'; flash.style.opacity = '1';
         await sleepAb(ms, ac.signal);
+        await setTorch(false);
         flash.style.opacity = '0'; await sleepAb(30, ac.signal);
       } else {
         flash.style.display = 'none'; await sleepAb(ms, ac.signal);
       }
     }
   } catch (e) { if (e.name !== 'AbortError') throw e; }
+  await setTorch(false);
   flash.style.display = 'none'; stopPlayback();
 }
 
@@ -419,6 +444,55 @@ function tapSplitInput(signal) {
 }
 
 // ============================================================
+// Adaptive Morse Decoder (shared by mic & camera)
+// ============================================================
+
+// Max-ratio-gap clustering: find shortest-cluster mean (= 1 dit unit)
+function clusterEstimate(durs) {
+  if (durs.length === 0) return 120;
+  if (durs.length === 1) return durs[0];
+  const sorted = [...durs].sort((a, b) => a - b);
+  let maxRatio = 0, splitIdx = 0;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const ratio = sorted[i + 1] / sorted[i];
+    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i + 1; }
+  }
+  if (maxRatio > 1.5 && splitIdx > 0) {
+    const shorts = sorted.slice(0, splitIdx);
+    return shorts.reduce((a, b) => a + b, 0) / shorts.length;
+  }
+  return sorted[Math.floor(sorted.length / 2)];
+}
+
+// Estimate dit unit from both ON durations and OFF gaps
+function estimateUnit(rawSignals) {
+  const recent = rawSignals.slice(-40);
+  const onDurs = recent.map(s => s.onDur);
+  const offDurs = recent.filter(s => s.gapBefore > 0).map(s => s.gapBefore);
+  const onEst = clusterEstimate(onDurs);
+  const offEst = offDurs.length >= 2 ? clusterEstimate(offDurs) : null;
+  if (onEst && offEst) return (onEst + offEst) / 2;
+  return onEst || 120;
+}
+
+// Rebuild full morse string from raw signals
+function rebuildMorse(rawSignals, unit, pendingGapMs) {
+  let morse = '';
+  for (let i = 0; i < rawSignals.length; i++) {
+    const sig = rawSignals[i];
+    if (i > 0) {
+      if (sig.gapBefore > unit * 5) morse += ' / ';
+      else if (sig.gapBefore > unit * 2) morse += ' ';
+    }
+    morse += sig.onDur < unit * 2 ? '.' : '-';
+  }
+  if (pendingGapMs > 0 && rawSignals.length > 0) {
+    if (pendingGapMs > unit * 5) morse += ' /';
+  }
+  return morse;
+}
+
+// ============================================================
 // Mic Input Engine
 // ============================================================
 const mic = {
@@ -427,57 +501,27 @@ const mic = {
   animFrame: null,
   isOn: false,
   onStart: 0,
-  offStart: 0,
-  buffer: '',
-  morseStr: '',
+  rawSignals: [],    // [{onDur, gapBefore}]
+  lastSignalEnd: 0,
   charTimer: null,
   wordTimer: null,
-  onDurations: [],  // recent ON durations for adaptive timing
-  autoWpm: true,    // true=auto, false=manual
+  autoWpm: true,
 };
 
-// Estimate dit duration from observed ON durations
-function getMicUnit() {
-  if (!mic.autoWpm) {
-    return 1200 / parseInt(document.getElementById('mic-wpm').value);
-  }
-  const durs = mic.onDurations;
-  if (durs.length === 0) return 120; // ~10 WPM default
-  if (durs.length === 1) return durs[0];
-
-  const sorted = [...durs].sort((a, b) => a - b);
-  // Find biggest ratio gap between consecutive durations to separate dits from dahs
-  let maxRatio = 0, splitIdx = 0;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const ratio = sorted[i + 1] / sorted[i];
-    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i + 1; }
-  }
-  if (maxRatio > 1.5 && splitIdx > 0) {
-    // Clear dit/dah separation — shorter cluster = dits
-    const dits = sorted.slice(0, splitIdx);
-    return dits.reduce((a, b) => a + b, 0) / dits.length;
-  }
-  // No clear separation — assume all are dits, use median
-  return sorted[Math.floor(sorted.length / 2)];
-}
-
-function micUpdateDisplay() {
+function micRebuild(pendingGapMs) {
   const el = document.getElementById('mic-buffer');
-  const full = mic.morseStr + (mic.buffer ? (mic.morseStr ? ' ' : '') + mic.buffer : '');
-  if (!full) { el.innerHTML = '<span class="placeholder">\u30de\u30a4\u30af\u3067\u97f3\u3092\u5165\u529b</span>'; }
-  else { el.textContent = toDisplay(full); }
-  if (full) document.getElementById('decode-output').textContent = decodeMorse(full);
-}
-
-function micCommitChar() {
-  if (!mic.buffer) return;
-  mic.morseStr += (mic.morseStr ? ' ' : '') + mic.buffer;
-  mic.buffer = '';
-}
-
-function micCommitWord() {
-  micCommitChar();
-  if (mic.morseStr && !mic.morseStr.endsWith('/')) mic.morseStr += ' /';
+  if (mic.rawSignals.length === 0) {
+    el.innerHTML = '<span class="placeholder">\u30de\u30a4\u30af\u3067\u97f3\u3092\u5165\u529b</span>';
+    return 120;
+  }
+  const unit = mic.autoWpm ? estimateUnit(mic.rawSignals) : 1200 / parseInt(document.getElementById('mic-wpm').value);
+  const morse = rebuildMorse(mic.rawSignals, unit, pendingGapMs);
+  el.textContent = toDisplay(morse);
+  document.getElementById('decode-output').textContent = decodeMorse(morse);
+  const estWpm = Math.round(1200 / unit);
+  document.getElementById('mic-wpm-val').textContent =
+    mic.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('mic-wpm').value + ' WPM');
+  return unit;
 }
 
 async function micStart() {
@@ -497,12 +541,10 @@ async function micStart() {
   document.getElementById('mic-stop-btn').style.display = '';
 
   mic.isOn = false;
-  mic.offStart = performance.now();
-  mic.buffer = '';
-  mic.morseStr = '';
-  mic.onDurations = [];
+  mic.rawSignals = [];
+  mic.lastSignalEnd = 0;
   document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
-  micUpdateDisplay();
+  micRebuild(0);
 
   const canvas = document.getElementById('mic-canvas');
   const cCtx = canvas.getContext('2d');
@@ -564,26 +606,15 @@ async function micStart() {
       if (mic.isOn) {
         mic.isOn = false;
         const dur = now - mic.onStart;
-        mic.onDurations.push(dur);
-        if (mic.onDurations.length > 40) mic.onDurations.shift();
+        const gapBefore = mic.rawSignals.length === 0 ? 0 : (mic.onStart - mic.lastSignalEnd);
+        mic.rawSignals.push({ onDur: dur, gapBefore });
+        mic.lastSignalEnd = now;
+        const unit = micRebuild(0);
 
-        const unit = getMicUnit();
-        mic.buffer += dur < unit * 2 ? '.' : '-';
-        mic.offStart = now;
-        micUpdateDisplay();
-
-        // Show estimated WPM
-        const estWpm = Math.round(1200 / unit);
-        document.getElementById('mic-wpm-val').textContent =
-          mic.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('mic-wpm').value + ' WPM');
-
-        // Adaptive gap timers: char gap at 2u, word gap at 5u total
         mic.charTimer = setTimeout(() => {
-          micCommitChar();
-          micUpdateDisplay();
+          micRebuild(performance.now() - mic.lastSignalEnd);
           mic.wordTimer = setTimeout(() => {
-            micCommitWord();
-            micUpdateDisplay();
+            micRebuild(performance.now() - mic.lastSignalEnd);
           }, unit * 3);
         }, unit * 2);
       }
@@ -597,8 +628,15 @@ function micStop() {
   if (mic.animFrame) { cancelAnimationFrame(mic.animFrame); mic.animFrame = null; }
   clearTimeout(mic.charTimer);
   clearTimeout(mic.wordTimer);
-  micCommitChar();
-  micUpdateDisplay();
+  if (mic.isOn) {
+    const now = performance.now();
+    const dur = now - mic.onStart;
+    const gapBefore = mic.rawSignals.length === 0 ? 0 : (mic.onStart - mic.lastSignalEnd);
+    mic.rawSignals.push({ onDur: dur, gapBefore });
+    mic.lastSignalEnd = now;
+    mic.isOn = false;
+  }
+  if (mic.rawSignals.length > 0) micRebuild(0);
   document.getElementById('mic-start-btn').style.display = '';
   document.getElementById('mic-stop-btn').style.display = 'none';
 }
@@ -611,51 +649,27 @@ const cam = {
   animFrame: null,
   isOn: false,
   onStart: 0,
-  buffer: '',
-  morseStr: '',
+  rawSignals: [],
+  lastSignalEnd: 0,
   charTimer: null,
   wordTimer: null,
-  onDurations: [],
   autoWpm: true,
 };
 
-function getCamUnit() {
-  if (!cam.autoWpm) {
-    return 1200 / parseInt(document.getElementById('cam-wpm').value);
-  }
-  const durs = cam.onDurations;
-  if (durs.length === 0) return 120;
-  if (durs.length === 1) return durs[0];
-  const sorted = [...durs].sort((a, b) => a - b);
-  let maxRatio = 0, splitIdx = 0;
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const ratio = sorted[i + 1] / sorted[i];
-    if (ratio > maxRatio) { maxRatio = ratio; splitIdx = i + 1; }
-  }
-  if (maxRatio > 1.5 && splitIdx > 0) {
-    const dits = sorted.slice(0, splitIdx);
-    return dits.reduce((a, b) => a + b, 0) / dits.length;
-  }
-  return sorted[Math.floor(sorted.length / 2)];
-}
-
-function camUpdateDisplay() {
+function camRebuild(pendingGapMs) {
   const el = document.getElementById('cam-buffer');
-  const full = cam.morseStr + (cam.buffer ? (cam.morseStr ? ' ' : '') + cam.buffer : '');
-  if (!full) { el.innerHTML = '<span class="placeholder">\u30ab\u30e1\u30e9\u3067\u5149\u3092\u691c\u51fa</span>'; }
-  else { el.textContent = toDisplay(full); }
-  if (full) document.getElementById('decode-output').textContent = decodeMorse(full);
-}
-
-function camCommitChar() {
-  if (!cam.buffer) return;
-  cam.morseStr += (cam.morseStr ? ' ' : '') + cam.buffer;
-  cam.buffer = '';
-}
-
-function camCommitWord() {
-  camCommitChar();
-  if (cam.morseStr && !cam.morseStr.endsWith('/')) cam.morseStr += ' /';
+  if (cam.rawSignals.length === 0) {
+    el.innerHTML = '<span class="placeholder">\u30ab\u30e1\u30e9\u3067\u5149\u3092\u691c\u51fa</span>';
+    return 120;
+  }
+  const unit = cam.autoWpm ? estimateUnit(cam.rawSignals) : 1200 / parseInt(document.getElementById('cam-wpm').value);
+  const morse = rebuildMorse(cam.rawSignals, unit, pendingGapMs);
+  el.textContent = toDisplay(morse);
+  document.getElementById('decode-output').textContent = decodeMorse(morse);
+  const estWpm = Math.round(1200 / unit);
+  document.getElementById('cam-wpm-val').textContent =
+    cam.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('cam-wpm').value + ' WPM');
+  return unit;
 }
 
 async function camStart() {
@@ -674,11 +688,10 @@ async function camStart() {
   document.getElementById('cam-stop-btn').style.display = '';
 
   cam.isOn = false;
-  cam.buffer = '';
-  cam.morseStr = '';
-  cam.onDurations = [];
+  cam.rawSignals = [];
+  cam.lastSignalEnd = 0;
   document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
-  camUpdateDisplay();
+  camRebuild(0);
 
   const canvas = document.getElementById('cam-canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -728,23 +741,15 @@ async function camStart() {
       if (cam.isOn) {
         cam.isOn = false;
         const dur = now - cam.onStart;
-        cam.onDurations.push(dur);
-        if (cam.onDurations.length > 40) cam.onDurations.shift();
-
-        const unit = getCamUnit();
-        cam.buffer += dur < unit * 2 ? '.' : '-';
-        camUpdateDisplay();
-
-        const estWpm = Math.round(1200 / unit);
-        document.getElementById('cam-wpm-val').textContent =
-          cam.autoWpm ? ('~' + estWpm + ' WPM') : (document.getElementById('cam-wpm').value + ' WPM');
+        const gapBefore = cam.rawSignals.length === 0 ? 0 : (cam.onStart - cam.lastSignalEnd);
+        cam.rawSignals.push({ onDur: dur, gapBefore });
+        cam.lastSignalEnd = now;
+        const unit = camRebuild(0);
 
         cam.charTimer = setTimeout(() => {
-          camCommitChar();
-          camUpdateDisplay();
+          camRebuild(performance.now() - cam.lastSignalEnd);
           cam.wordTimer = setTimeout(() => {
-            camCommitWord();
-            camUpdateDisplay();
+            camRebuild(performance.now() - cam.lastSignalEnd);
           }, unit * 3);
         }, unit * 2);
       }
@@ -758,8 +763,15 @@ function camStop() {
   if (cam.animFrame) { cancelAnimationFrame(cam.animFrame); cam.animFrame = null; }
   clearTimeout(cam.charTimer);
   clearTimeout(cam.wordTimer);
-  camCommitChar();
-  camUpdateDisplay();
+  if (cam.isOn) {
+    const now = performance.now();
+    const dur = now - cam.onStart;
+    const gapBefore = cam.rawSignals.length === 0 ? 0 : (cam.onStart - cam.lastSignalEnd);
+    cam.rawSignals.push({ onDur: dur, gapBefore });
+    cam.lastSignalEnd = now;
+    cam.isOn = false;
+  }
+  if (cam.rawSignals.length > 0) camRebuild(0);
   document.getElementById('cam-video').srcObject = null;
   document.getElementById('cam-start-btn').style.display = '';
   document.getElementById('cam-stop-btn').style.display = 'none';
@@ -848,12 +860,12 @@ function resetAll() {
   tapUpdateDisplay();
   // mic
   micStop();
-  mic.buffer = ''; mic.morseStr = '';
-  micUpdateDisplay();
+  mic.rawSignals = []; mic.lastSignalEnd = 0;
+  micRebuild(0);
   // cam
   camStop();
-  cam.buffer = ''; cam.morseStr = '';
-  camUpdateDisplay();
+  cam.rawSignals = []; cam.lastSignalEnd = 0;
+  camRebuild(0);
 }
 
 function buildPresets() {
@@ -1024,8 +1036,8 @@ document.getElementById('mic-sensitivity').addEventListener('input', function() 
   document.getElementById('mic-threshold-mark').style.left = this.value + '%';
 });
 document.getElementById('mic-clear-btn').addEventListener('click', () => {
-  mic.buffer = ''; mic.morseStr = ''; mic.onDurations = [];
-  micUpdateDisplay();
+  mic.rawSignals = []; mic.lastSignalEnd = 0;
+  micRebuild(0);
   document.getElementById('mic-wpm-val').textContent = mic.autoWpm ? '--- WPM' : (document.getElementById('mic-wpm').value + ' WPM');
   document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
 });
@@ -1049,8 +1061,8 @@ document.getElementById('cam-sensitivity').addEventListener('input', function() 
   document.getElementById('cam-threshold-mark').style.left = this.value + '%';
 });
 document.getElementById('cam-clear-btn').addEventListener('click', () => {
-  cam.buffer = ''; cam.morseStr = ''; cam.onDurations = [];
-  camUpdateDisplay();
+  cam.rawSignals = []; cam.lastSignalEnd = 0;
+  camRebuild(0);
   document.getElementById('cam-wpm-val').textContent = cam.autoWpm ? '--- WPM' : (document.getElementById('cam-wpm').value + ' WPM');
   document.getElementById('decode-output').innerHTML = '<span class="placeholder">\u30c7\u30b3\u30fc\u30c9\u7d50\u679c\u304c\u3053\u3053\u306b\u8868\u793a\u3055\u308c\u307e\u3059</span>';
 });
